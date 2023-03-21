@@ -2,7 +2,6 @@ package dpfm_api_processing_formatter
 
 import (
 	"context"
-	"convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes/DPFM_API_Caller/requests"
 	dpfm_api_input_reader "convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes/DPFM_API_Input_Reader"
 	"sync"
 
@@ -32,43 +31,55 @@ func (p *ProcessingFormatter) ProcessingFormatter(
 	var err error
 	var e error
 
+	if bpIDIsNull(sdc) {
+		return xerrors.New("business_partner is null")
+	}
+
 	wg := sync.WaitGroup{}
+
+	psdc.Header = p.Header(sdc, psdc)
 
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
-
-		psdc.Header, e = p.Header(sdc, psdc)
-		if e != nil {
-			err = e
-			return
-		}
+		// Ref: Header
 		psdc.ConversionProcessingHeader, e = p.ConversionProcessingHeader(sdc, psdc)
 		if e != nil {
 			err = e
 			return
 		}
-		psdc.Item, e = p.Item(sdc, psdc)
-		if e != nil {
-			err = e
-			return
-		}
-		psdc.ConversionProcessingItem, e = p.ConversionProcessingItem(sdc, psdc)
-		if e != nil {
-			err = e
-			return
-		}
-		psdc.Address, e = p.Address(sdc, psdc)
-		if e != nil {
-			err = e
-			return
-		}
-		psdc.Partner, e = p.Partner(sdc, psdc)
-		if e != nil {
-			err = e
-			return
-		}
+	}(&wg)
 
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		// Ref: Header
+		psdc.Item = p.Item(sdc, psdc)
+
+		wg.Add(1)
+		go func(wg *sync.WaitGroup) {
+			defer wg.Done()
+			// Ref: Item
+			psdc.ConversionProcessingItem, e = p.ConversionProcessingItem(sdc, psdc)
+			if e != nil {
+				err = e
+				return
+			}
+		}(wg)
+	}(&wg)
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		// Ref: Header
+		psdc.Address = p.Address(sdc, psdc)
+	}(&wg)
+
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		// Ref: Header
+		psdc.Partner = p.Partner(sdc, psdc)
 	}(&wg)
 
 	wg.Wait()
@@ -81,9 +92,9 @@ func (p *ProcessingFormatter) ProcessingFormatter(
 	return nil
 }
 
-func (p *ProcessingFormatter) Header(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) (*Header, error) {
+func (p *ProcessingFormatter) Header(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) *Header {
 	data := sdc.Header
-	dataItem := sdc.Header.Item
+	dataItem := sdc.Header.Item[0]
 
 	systemDate := getSystemDatePtr()
 	systemTime := getSystemTimePtr()
@@ -94,36 +105,48 @@ func (p *ProcessingFormatter) Header(sdc *dpfm_api_input_reader.SDC, psdc *Proce
 		ConvertingSeller:                data.TradeSellerIdentifier,
 		ConvertingDeliverToParty:        data.TradeShipToPartyIdentifier,
 		ConvertingDeliverFromParty:      data.TradeShipFromPartyIdentifier,
-		DeliverFromPlant:                dataItem[0].LogisticsLocationIdentification,
+		DeliverFromPlant:                dataItem.LogisticsLocationIdentification,
+		ConvertingBillToParty:           data.TradeBuyerIdentifier,
+		ConvertingBillFromParty:         data.TradeSellerIdentifier,
+		ConvertingPayer:                 data.TradeBuyerIdentifier,
+		ConvertingPayee:                 data.TradeSellerIdentifier,
 		ConvertingReferenceDocument:     data.ReferencedOrdersDocumentIssureAssignedIdentifier,
-		ConvertingReferenceDocumentItem: dataItem[0].ReferencedOrdersDocumentItemLineIdentifier,
+		ConvertingReferenceDocumentItem: dataItem.ReferencedOrdersDocumentItemLineIdentifier,
+		ConvertingOrderID:               data.ReferencedOrdersDocumentIssureAssignedIdentifier,
+		ConvertingOrderItem:             dataItem.ReferencedOrdersDocumentItemLineIdentifier,
 		DocumentDate:                    data.ExchangedDeliveryNoticeDocumentIssueDate,
-		PlannedGoodsReceiptDate:         dataItem[0].SupplyChainEventRequirementOccurrenceDate,
+		PlannedGoodsIssueDate:           systemDate,
+		PlannedGoodsReceiptDate:         dataItem.SupplyChainEventRequirementOccurrenceDate,
 		CreationDate:                    systemDate,
 		CreationTime:                    systemTime,
 		LastChangeDate:                  systemDate,
 		LastChangeTime:                  systemTime,
-		GoodsIssueOrReceiptSlipNumber:   dataItem[0].SupplyChainDeliveryEventIdentifier,
+		GoodsIssueOrReceiptSlipNumber:   dataItem.SupplyChainDeliveryEventIdentifier,
 		HeaderDeliveryBlockStatus:       getBoolPtr(false),
 		HeaderIssuingBlockStatus:        getBoolPtr(false),
 		HeaderReceivingBlockStatus:      getBoolPtr(false),
 		IsCancelled:                     getBoolPtr(false),
 		IsMarkedForDeletion:             getBoolPtr(false),
+		ConvertingProject:               data.ProjectIdentifier,
 	}
 
-	return &res, nil
+	return &res
 }
 
 func (p *ProcessingFormatter) ConversionProcessingHeader(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) (*ConversionProcessingHeader, error) {
 	dataKey := make([]*ConversionProcessingKey, 0)
 
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "ExchangedDeliveryNoticeDocumentIdentifier", "DeliveryDocument", psdc.Header.ConvertingDeliveryDocument))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "TradeBuyerIdentifier", "Buyer", psdc.Header.ConvertingBuyer))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "TradeSellerIdentifier", "Seller", psdc.Header.ConvertingSeller))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "TradeShipToPartyIdentifier", "DeliverToParty", psdc.Header.ConvertingDeliverToParty))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "TradeShipFromPartyIdentifier", "DeliverFromParty", psdc.Header.ConvertingDeliverFromParty))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "ReferencedOrdersDocumentIssureAssignedIdentifier", "ReferenceDocument", psdc.Header.ConvertingReferenceDocument))
-	dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "ReferencedOrdersDocumentItemLineIdentifier", "ReferenceDocumentItem", psdc.Header.ConvertingReferenceDocumentItem))
+	p.appendDataKey(&dataKey, sdc, "ExchangedDeliveryNoticeDocumentIdentifier", "DeliveryDocument", psdc.Header.ConvertingDeliveryDocument)
+	p.appendDataKey(&dataKey, sdc, "TradeBuyerIdentifier", "Buyer", psdc.Header.ConvertingBuyer)
+	p.appendDataKey(&dataKey, sdc, "TradeSellerIdentifier", "Seller", psdc.Header.ConvertingSeller)
+	p.appendDataKey(&dataKey, sdc, "TradeShipToPartyIdentifier", "DeliverToParty", psdc.Header.ConvertingDeliverToParty)
+	p.appendDataKey(&dataKey, sdc, "TradeShipFromPartyIdentifier", "DeliverFromParty", psdc.Header.ConvertingDeliverFromParty)
+	p.appendDataKey(&dataKey, sdc, "TradeBuyerIdentifier", "BillToParty", psdc.Header.ConvertingBillToParty)
+	p.appendDataKey(&dataKey, sdc, "TradeSellerIdentifier", "BillFromParty", psdc.Header.ConvertingBillFromParty)
+	p.appendDataKey(&dataKey, sdc, "TradeBuyerIdentifier", "Payer", psdc.Header.ConvertingPayer)
+	p.appendDataKey(&dataKey, sdc, "TradeSellerIdentifier", "Payee", psdc.Header.ConvertingPayee)
+	p.appendDataKey(&dataKey, sdc, "ReferencedOrdersDocumentIssureAssignedIdentifier", "ReferenceDocument", psdc.Header.ConvertingReferenceDocument)
+	p.appendDataKey(&dataKey, sdc, "ReferencedOrdersDocumentItemLineIdentifier", "ReferenceDocumentItem", psdc.Header.ConvertingReferenceDocumentItem)
 
 	dataQueryGets, err := p.ConversionProcessingCommonQueryGets(dataKey)
 	if err != nil {
@@ -146,48 +169,61 @@ func (psdc *ProcessingFormatter) ConvertToConversionProcessingHeader(conversionP
 
 	for _, v := range conversionProcessingKey {
 		if _, ok := data[v.LabelConvertTo]; !ok {
-			return nil, xerrors.Errorf("%s is not in the database", v.LabelConvertTo)
+			return nil, xerrors.Errorf("Value of %s is not in the database", v.LabelConvertTo)
 		}
 	}
 
-	pm := &requests.ConversionProcessingHeader{}
+	res := &ConversionProcessingHeader{}
 
-	pm.ConvertingDeliveryDocument = data["DeliveryDocument"].CodeConvertFromString
-	pm.ConvertedDeliveryDocument = data["DeliveryDocument"].CodeConvertToInt
-	pm.ConvertingBuyer = data["Buyer"].CodeConvertFromString
-	pm.ConvertedBuyer = data["Buyer"].CodeConvertToInt
-	pm.ConvertingSeller = data["Seller"].CodeConvertFromString
-	pm.ConvertedSeller = data["Seller"].CodeConvertToInt
-	pm.ConvertingDeliverToParty = data["DeliverToParty"].CodeConvertFromString
-	pm.ConvertedDeliverToParty = data["DeliverToParty"].CodeConvertToInt
-	pm.ConvertingDeliverFromParty = data["DeliverFromParty"].CodeConvertFromString
-	pm.ConvertedDeliverFromParty = data["DeliverFromParty"].CodeConvertToInt
-	pm.ConvertingReferenceDocument = data["ReferenceDocument"].CodeConvertFromString
-	pm.ConvertedReferenceDocument = data["ReferenceDocument"].CodeConvertToInt
-	pm.ConvertingReferenceDocumentItem = data["ReferenceDocumentItem"].CodeConvertFromString
-	pm.ConvertedReferenceDocumentItem = data["ReferenceDocumentItem"].CodeConvertToInt
-
-	res := &ConversionProcessingHeader{
-		ConvertingDeliveryDocument:      pm.ConvertingDeliveryDocument,
-		ConvertedDeliveryDocument:       pm.ConvertedDeliveryDocument,
-		ConvertingBuyer:                 pm.ConvertingBuyer,
-		ConvertedBuyer:                  pm.ConvertedBuyer,
-		ConvertingSeller:                pm.ConvertingSeller,
-		ConvertedSeller:                 pm.ConvertedSeller,
-		ConvertingDeliverToParty:        pm.ConvertingDeliverToParty,
-		ConvertedDeliverToParty:         pm.ConvertedDeliverToParty,
-		ConvertingDeliverFromParty:      pm.ConvertingDeliverFromParty,
-		ConvertedDeliverFromParty:       pm.ConvertedDeliverFromParty,
-		ConvertingReferenceDocument:     pm.ConvertingReferenceDocument,
-		ConvertedReferenceDocument:      pm.ConvertedReferenceDocument,
-		ConvertingReferenceDocumentItem: pm.ConvertingReferenceDocumentItem,
-		ConvertedReferenceDocumentItem:  pm.ConvertedReferenceDocumentItem,
+	if _, ok := data["DeliveryDocument"]; ok {
+		res.ConvertingDeliveryDocument = data["DeliveryDocument"].CodeConvertFromString
+		res.ConvertedDeliveryDocument = data["DeliveryDocument"].CodeConvertToInt
+	}
+	if _, ok := data["Buyer"]; ok {
+		res.ConvertingBuyer = data["Buyer"].CodeConvertFromString
+		res.ConvertedBuyer = data["Buyer"].CodeConvertToInt
+	}
+	if _, ok := data["Seller"]; ok {
+		res.ConvertingSeller = data["Seller"].CodeConvertFromString
+		res.ConvertedSeller = data["Seller"].CodeConvertToInt
+	}
+	if _, ok := data["DeliverToParty"]; ok {
+		res.ConvertingDeliverToParty = data["DeliverToParty"].CodeConvertFromString
+		res.ConvertedDeliverToParty = data["DeliverToParty"].CodeConvertToInt
+	}
+	if _, ok := data["DeliverFromParty"]; ok {
+		res.ConvertingDeliverFromParty = data["DeliverFromParty"].CodeConvertFromString
+		res.ConvertedDeliverFromParty = data["DeliverFromParty"].CodeConvertToInt
+	}
+	if _, ok := data["BillToParty"]; ok {
+		res.ConvertingBillToParty = data["BillToParty"].CodeConvertFromString
+		res.ConvertedBillToParty = data["BillToParty"].CodeConvertToInt
+	}
+	if _, ok := data["BillFromParty"]; ok {
+		res.ConvertingBillFromParty = data["BillFromParty"].CodeConvertFromString
+		res.ConvertedBillFromParty = data["BillFromParty"].CodeConvertToInt
+	}
+	if _, ok := data["Payer"]; ok {
+		res.ConvertingPayer = data["Payer"].CodeConvertFromString
+		res.ConvertedPayer = data["Payer"].CodeConvertToInt
+	}
+	if _, ok := data["Payee"]; ok {
+		res.ConvertingPayee = data["Payee"].CodeConvertFromString
+		res.ConvertedPayee = data["Payee"].CodeConvertToInt
+	}
+	if _, ok := data["ReferenceDocument"]; ok {
+		res.ConvertingReferenceDocument = data["ReferenceDocument"].CodeConvertFromString
+		res.ConvertedReferenceDocument = data["ReferenceDocument"].CodeConvertToInt
+	}
+	if _, ok := data["ReferenceDocumentItem"]; ok {
+		res.ConvertingReferenceDocumentItem = data["ReferenceDocumentItem"].CodeConvertFromString
+		res.ConvertedReferenceDocumentItem = data["ReferenceDocumentItem"].CodeConvertToInt
 	}
 
 	return res, nil
 }
 
-func (p *ProcessingFormatter) Item(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) ([]*Item, error) {
+func (p *ProcessingFormatter) Item(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) []*Item {
 	res := make([]*Item, 0)
 	dataHeader := psdc.Header
 	data := sdc.Header.Item
@@ -198,39 +234,45 @@ func (p *ProcessingFormatter) Item(sdc *dpfm_api_input_reader.SDC, psdc *Process
 	for _, data := range data {
 
 		res = append(res, &Item{
-			ConvertingDeliveryDocument:             dataHeader.ConvertingDeliveryDocument,
-			ConvertingDeliveryDocumentItem:         data.DeliveryNoticeDocumentItemlineIdentifier,
-			ConvertingBuyer:                        dataHeader.ConvertingBuyer,
-			ConvertingSeller:                       dataHeader.ConvertingSeller,
-			ConvertingDeliverToParty:               dataHeader.ConvertingDeliverToParty,
-			ConvertingDeliverFromParty:             dataHeader.ConvertingDeliverFromParty,
-			DeliverFromPlant:                       dataHeader.DeliverFromPlant,
-			DeliveryDocumentItemText:               data.NoteDeliveryNoticeItemContentText,
-			Product:                                data.TradeProductIdentifier,
-			ProductStandardID:                      data.TradeProductGlobalIdentifier,
-			DeliveryUnit:                           data.ReferencedLogisticsPackageQuantityUnitCode,
-			CreationDate:                           systemDate,
-			CreationTime:                           systemTime,
-			LastChangeDate:                         systemDate,
-			LastChangeTime:                         systemTime,
-			NetAmount:                              data.ItemTradeDeliveryNoticeSettlementMonetarySummationNetTotalAmount,
-			GrossAmount:                            data.ItemTradeDeliveryNoticeSettlementMonetarySummationIncludingTaxesNetTotalAmount,
-			ConvertingOrderID:                      dataHeader.ConvertingReferenceDocument,
-			ConvertingOrderItem:                    dataHeader.ConvertingReferenceDocument,
-			ConvertingProject:                      sdc.Header.ProjectIdentifier,
-			ConvertingReferenceDocument:            dataHeader.ConvertingReferenceDocument,
-			ConvertingReferenceDocumentItem:        dataHeader.ConvertingReferenceDocumentItem,
-			ConvertingTransactionTaxClassification: data.ItemTradeTaxCategoryCode,
-			ItemDeliveryBlockStatus:                getBoolPtr(false),
-			ItemIssuingBlockStatus:                 getBoolPtr(false),
-			ItemReceivingBlockStatus:               getBoolPtr(false),
-			ItemBillingBlockStatus:                 getBoolPtr(false),
-			IsCancelled:                            getBoolPtr(false),
-			IsMarkedForDeletion:                    getBoolPtr(false),
+			ConvertingDeliveryDocument:                 dataHeader.ConvertingDeliveryDocument,
+			ConvertingDeliveryDocumentItem:             data.DeliveryNoticeDocumentItemlineIdentifier,
+			ConvertingBuyer:                            dataHeader.ConvertingBuyer,
+			ConvertingSeller:                           dataHeader.ConvertingSeller,
+			ConvertingDeliverToParty:                   dataHeader.ConvertingDeliverToParty,
+			ConvertingDeliverFromParty:                 dataHeader.ConvertingDeliverFromParty,
+			DeliverFromPlant:                           dataHeader.DeliverFromPlant,
+			ConvertingBillToParty:                      dataHeader.ConvertingBillToParty,
+			ConvertingBillFromParty:                    dataHeader.ConvertingBillFromParty,
+			ConvertingPayer:                            dataHeader.ConvertingPayer,
+			ConvertingPayee:                            dataHeader.ConvertingPayee,
+			ConvertingStockConfirmationBusinessPartner: dataHeader.ConvertingDeliverFromParty,
+			ConvertingStockConfirmationPlant:           dataHeader.DeliverFromPlant,
+			DeliveryDocumentItemText:                   data.NoteDeliveryNoticeItemContentText,
+			Product:                                    data.TradeProductIdentifier,
+			ProductStandardID:                          data.TradeProductGlobalIdentifier,
+			DeliveryUnit:                               data.ReferencedLogisticsPackageQuantityUnitCode,
+			CreationDate:                               systemDate,
+			CreationTime:                               systemTime,
+			LastChangeDate:                             systemDate,
+			LastChangeTime:                             systemTime,
+			NetAmount:                                  data.ItemTradeDeliveryNoticeSettlementMonetarySummationNetTotalAmount,
+			GrossAmount:                                data.ItemTradeDeliveryNoticeSettlementMonetarySummationIncludingTaxesNetTotalAmount,
+			ConvertingOrderID:                          dataHeader.ConvertingReferenceDocument,
+			ConvertingOrderItem:                        dataHeader.ConvertingReferenceDocument,
+			ConvertingProject:                          dataHeader.ConvertingProject,
+			ConvertingReferenceDocument:                dataHeader.ConvertingReferenceDocument,
+			ConvertingReferenceDocumentItem:            dataHeader.ConvertingReferenceDocumentItem,
+			ConvertingTransactionTaxClassification:     data.ItemTradeTaxCategoryCode,
+			ItemDeliveryBlockStatus:                    getBoolPtr(false),
+			ItemIssuingBlockStatus:                     getBoolPtr(false),
+			ItemReceivingBlockStatus:                   getBoolPtr(false),
+			ItemBillingBlockStatus:                     getBoolPtr(false),
+			IsCancelled:                                getBoolPtr(false),
+			IsMarkedForDeletion:                        getBoolPtr(false),
 		})
 	}
 
-	return res, nil
+	return res
 }
 
 func (p *ProcessingFormatter) ConversionProcessingItem(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) ([]*ConversionProcessingItem, error) {
@@ -239,9 +281,9 @@ func (p *ProcessingFormatter) ConversionProcessingItem(sdc *dpfm_api_input_reade
 	for _, item := range psdc.Item {
 		dataKey := make([]*ConversionProcessingKey, 0)
 
-		dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "DeliveryNoticeDocumentItemlineIdentifier", "DeliveryDocumentItem", item.ConvertingDeliveryDocumentItem))
-		dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "ProjectIdentifier", "Project", item.ConvertingProject))
-		dataKey = append(dataKey, p.ConversionProcessingKey(sdc, "ItemTradeTaxCategoryCode", "TransactionTaxClassification", item.ConvertingTransactionTaxClassification))
+		p.appendDataKey(&dataKey, sdc, "DeliveryNoticeDocumentItemlineIdentifier", "DeliveryDocumentItem", item.ConvertingDeliveryDocumentItem)
+		p.appendDataKey(&dataKey, sdc, "ProjectIdentifier", "Project", item.ConvertingProject)
+		p.appendDataKey(&dataKey, sdc, "ItemTradeTaxCategoryCode", "TransactionTaxClassification", item.ConvertingTransactionTaxClassification)
 
 		dataQueryGets, err := p.ConversionProcessingCommonQueryGets(dataKey)
 		if err != nil {
@@ -271,47 +313,142 @@ func (p *ProcessingFormatter) ConvertToConversionProcessingItem(conversionProces
 		}
 	}
 
-	pm := &requests.ConversionProcessingItem{}
+	res := &ConversionProcessingItem{}
 
-	pm.ConvertingDeliveryDocumentItem = data["DeliveryDocumentItem"].CodeConvertFromString
-	pm.ConvertedDeliveryDocumentItem = data["DeliveryDocumentItem"].CodeConvertToInt
-	pm.ConvertingProject = data["Project"].CodeConvertFromString
-	pm.ConvertedProject = data["Project"].CodeConvertFromString
-	pm.ConvertingTransactionTaxClassification = data["TransactionTaxClassification"].CodeConvertFromString
-	pm.ConvertedTransactionTaxClassification = data["TransactionTaxClassification"].CodeConvertFromString
-
-	res := &ConversionProcessingItem{
-		ConvertingDeliveryDocumentItem:         pm.ConvertingDeliveryDocumentItem,
-		ConvertedDeliveryDocumentItem:          pm.ConvertedDeliveryDocumentItem,
-		ConvertingProject:                      pm.ConvertingProject,
-		ConvertedProject:                       pm.ConvertedProject,
-		ConvertingTransactionTaxClassification: pm.ConvertingTransactionTaxClassification,
-		ConvertedTransactionTaxClassification:  pm.ConvertedTransactionTaxClassification,
+	if _, ok := data["DeliveryDocumentItem"]; ok {
+		res.ConvertingDeliveryDocumentItem = data["DeliveryDocumentItem"].CodeConvertFromString
+		res.ConvertedDeliveryDocumentItem = data["DeliveryDocumentItem"].CodeConvertToInt
+	}
+	if _, ok := data["Project"]; ok {
+		res.ConvertingProject = data["Project"].CodeConvertFromString
+		res.ConvertedProject = data["Project"].CodeConvertFromString
+	}
+	if _, ok := data["TransactionTaxClassification"]; ok {
+		res.ConvertingTransactionTaxClassification = data["TransactionTaxClassification"].CodeConvertFromString
+		res.ConvertedTransactionTaxClassification = data["TransactionTaxClassification"].CodeConvertFromString
 	}
 
 	return res, nil
 }
 
-func (p *ProcessingFormatter) Address(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) ([]*Address, error) {
+func (p *ProcessingFormatter) Address(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) []*Address {
 	res := make([]*Address, 0)
-	dataHeader := psdc.Header
 
-	res = append(res, &Address{
-		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
-		PostalCode:                 sdc.Header.SellerAddressPostalCode,
-	})
+	deliverToPartyAddress := deliverToPartyAddress(sdc, psdc)
+	if !postalCodeContains(deliverToPartyAddress.PostalCode, res) {
+		res = append(res, deliverToPartyAddress)
+	}
 
-	return res, nil
+	deliverFromPartyAddress := deliverFromPartyAddress(sdc, psdc)
+	if !postalCodeContains(deliverFromPartyAddress.PostalCode, res) {
+		res = append(res, deliverFromPartyAddress)
+	}
+
+	buyerAddress := buyerAddress(sdc, psdc)
+	if !postalCodeContains(buyerAddress.PostalCode, res) {
+		res = append(res, buyerAddress)
+	}
+
+	sellerAddress := sellerAddress(sdc, psdc)
+	if !postalCodeContains(sellerAddress.PostalCode, res) {
+		res = append(res, sellerAddress)
+	}
+
+	return res
 }
 
-func (p *ProcessingFormatter) Partner(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) ([]*Partner, error) {
+func deliverToPartyAddress(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) *Address {
+	dataHeader := psdc.Header
+
+	res := &Address{
+		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
+		PostalCode:                 sdc.Header.SellerAddressPostalCode,
+	}
+
+	return res
+}
+
+func deliverFromPartyAddress(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) *Address {
+	dataHeader := psdc.Header
+
+	res := &Address{
+		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
+		PostalCode:                 sdc.Header.SellerAddressPostalCode,
+	}
+
+	return res
+}
+
+func buyerAddress(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) *Address {
+	dataHeader := psdc.Header
+
+	res := &Address{
+		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
+		PostalCode:                 sdc.Header.BuyerAddressPostalCode,
+	}
+
+	return res
+}
+
+func sellerAddress(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) *Address {
+	dataHeader := psdc.Header
+
+	res := &Address{
+		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
+		PostalCode:                 sdc.Header.SellerAddressPostalCode,
+	}
+
+	return res
+}
+
+func (p *ProcessingFormatter) Partner(sdc *dpfm_api_input_reader.SDC, psdc *ProcessingFormatterSDC) []*Partner {
 	res := make([]*Partner, 0)
 	dataHeader := psdc.Header
 
-	for range psdc.Partner {
-		res = append(res, &Partner{
-			ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
-		})
+	res = append(res, &Partner{
+		ConvertingDeliveryDocument: dataHeader.ConvertingDeliveryDocument,
+	})
+
+	return res
+}
+
+func (p *ProcessingFormatter) appendDataKey(dataKey *[]*ConversionProcessingKey, sdc *dpfm_api_input_reader.SDC, labelConvertFrom string, labelConvertTo string, codeConvertFrom any) {
+	switch v := codeConvertFrom.(type) {
+	case int, float32:
+		if v == 0 {
+			return
+		}
+	case string:
+		if v == "" {
+			return
+		}
+	case *int, *float32:
+		if v == nil {
+			return
+		}
+	case *string:
+		if v == nil || *v == "" {
+			return
+		}
+	default:
+		return
 	}
-	return res, nil
+	*dataKey = append(*dataKey, p.ConversionProcessingKey(sdc, labelConvertFrom, labelConvertTo, codeConvertFrom))
+}
+
+func postalCodeContains(postalCode *string, addresses []*Address) bool {
+	for _, address := range addresses {
+		if address.PostalCode == nil || postalCode == nil {
+			return true
+		}
+		if *address.PostalCode == *postalCode {
+			return true
+		}
+	}
+
+	return false
+}
+
+func bpIDIsNull(sdc *dpfm_api_input_reader.SDC) bool {
+	return sdc.BusinessPartnerID == nil
 }

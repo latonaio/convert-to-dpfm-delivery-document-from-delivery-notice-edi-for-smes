@@ -1,27 +1,28 @@
 package dpfm_api_output_formatter
 
 type Output struct {
-	ConnectionKey       string      `json:"connection_key"`
-	Result              bool        `json:"result"`
-	RedisKey            string      `json:"redis_key"`
-	Filepath            string      `json:"filepath"`
-	APIStatusCode       int         `json:"api_status_code"`
-	RuntimeSessionID    string      `json:"runtime_session_id"`
-	BusinessPartnerID   *int        `json:"business_partner"`
-	ServiceLabel        string      `json:"service_label"`
-	Message             interface{} `json:"message"`
-	APISchema           string      `json:"api_schema"`
-	Accepter            []string    `json:"accepter"`
-	Deleted             bool        `json:"deleted"`
-	APIProcessingResult *bool       `json:"api_processing_result"`
-	APIProcessingError  string      `json:"api_processing_error"`
+	ConnectionKey       string            `json:"connection_key"`
+	Result              bool              `json:"result"`
+	RedisKey            string            `json:"redis_key"`
+	Filepath            string            `json:"filepath"`
+	APIStatusCode       int               `json:"api_status_code"`
+	RuntimeSessionID    string            `json:"runtime_session_id"`
+	BusinessPartnerID   *int              `json:"business_partner"`
+	ServiceLabel        string            `json:"service_label"`
+	APIType             string            `json:"api_type"`
+	DataConcatenation   DataConcatenation `json:"DataConcatenation"`
+	APISchema           string            `json:"api_schema"`
+	Accepter            []string          `json:"accepter"`
+	Deleted             bool              `json:"deleted"`
+	APIProcessingResult *bool             `json:"api_processing_result"`
+	APIProcessingError  string            `json:"api_processing_error"`
 }
 
-type Message struct {
-	Header  *Header    `json:"Header"`
-	Item    []*Item    `json:"Item"`
-	Address []*Address `json:"Address"`
-	Partner []*Partner `json:"Partner"`
+type DataConcatenation struct {
+	Header  *Header    `json:"DeliveryDocumentHeader"`
+	Item    []*Item    `json:"DeliveryDocumentItem"`
+	Address []*Address `json:"DeliveryDocumentAddress"`
+	Partner []*Partner `json:"DeliveryDocumentPartner"`
 }
 
 type Header struct {
@@ -144,6 +145,9 @@ type Item struct {
 	ProductionPlantBatchValidityStartTime         *string  `json:"ProductionPlantBatchValidityStartTime"`
 	ProductionPlantBatchValidityEndDate           *string  `json:"ProductionPlantBatchValidityEndDate"`
 	ProductionPlantBatchValidityEndTime           *string  `json:"ProductionPlantBatchValidityEndTime"`
+	InspectionPlan                                *int     `json:"InspectionPlan"`
+	InspectionPlant                               *string  `json:"InspectionPlant"`
+	InspectionOrder                               *int     `json:"InspectionOrder"`
 	DeliveryDocumentItemText                      *string  `json:"DeliveryDocumentItemText"`
 	DeliveryDocumentItemTextByBuyer               *string  `json:"DeliveryDocumentItemTextByBuyer"`
 	DeliveryDocumentItemTextBySeller              *string  `json:"DeliveryDocumentItemTextBySeller"`

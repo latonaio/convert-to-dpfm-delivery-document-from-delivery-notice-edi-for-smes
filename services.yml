@@ -2,33 +2,33 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
-  name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
+    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
+  name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
 spec:
   replicas: 1
   selector:
     matchLabels:
-      run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
-      app: FUNCTION_CONVERT_TO_DPFM_DELIVERY_DOCUMENT_FROM_DELIVERY_NOTICE_EDI_FOR_SMES
+      run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
+      app: CONVERT_TO_DPFM_DELIVERY_DOCUMENT_FROM_DELIVERY_NOTICE_EDI_SMES
   template:
     metadata:
       labels:
-        run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
-        app: FUNCTION_CONVERT_TO_DPFM_DELIVERY_DOCUMENT_FROM_DELIVERY_NOTICE_EDI_FOR_SMES
+        run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
+        app: CONVERT_TO_DPFM_DELIVERY_DOCUMENT_FROM_DELIVERY_NOTICE_EDI_SMES
     spec:
-      hostname: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
+      hostname: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
       containers:
-        - name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
+        - name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
           image: latonaio/convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
           imagePullPolicy: Always
           env:
             - name: "RMQ_QUEUE_FROM"
               value: "convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes-queue"
             - name: "RMQ_QUEUE_TO"
-              value: "convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes-queue"
-            - name: "RMQ_SESSION_CONTROL_QUEUE"
-              value: "data-platform-api-delivery-document-creates-session-control-queue"
-            - name: "DB_NAME"
+              value: "data-platform-api-data-concatenation-queue"
+            - name : "NESTJS_DATA_CONNECTION_REQUEST_CONTROL_MANAGER_CONSUME"
+              value: "nestjs-data-connection-request-control-manager-consume"
+            - name: "MYSQL_DB_NAME"
               value: "DataPlatformMastersAndTransactionsMysqlKube"
           envFrom:
             - configMapRef:
@@ -40,11 +40,11 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
-  name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
+    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
+  name: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
 spec:
   selector:
-    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-for-smes
+    run: convert-to-dpfm-delivery-document-from-delivery-notice-edi-smes
   type: NodePort
   ports:
     - name: api

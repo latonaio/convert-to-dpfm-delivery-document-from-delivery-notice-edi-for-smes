@@ -11,6 +11,14 @@ type ConversionProcessingHeader struct {
 	ConvertedDeliverToParty         *int    `json:"ConvertedDeliverToParty"`
 	ConvertingDeliverFromParty      *string `json:"ConvertingDeliverFromParty"`
 	ConvertedDeliverFromParty       *int    `json:"ConvertedDeliverFromParty"`
+	ConvertingBillToParty           *string `json:"ConvertingBillToParty"`
+	ConvertedBillToParty            *int    `json:"ConvertedBillToParty"`
+	ConvertingBillFromParty         *string `json:"ConvertingBillFromParty"`
+	ConvertedBillFromParty          *int    `json:"ConvertedBillFromParty"`
+	ConvertingPayer                 *string `json:"ConvertingPayer"`
+	ConvertedPayer                  *int    `json:"ConvertedPayer"`
+	ConvertingPayee                 *string `json:"ConvertingPayee"`
+	ConvertedPayee                  *int    `json:"ConvertedPayee"`
 	ConvertingReferenceDocument     *string `json:"ConvertingReferenceDocument"`
 	ConvertedReferenceDocument      *int    `json:"ConvertedReferenceDocument"`
 	ConvertingReferenceDocumentItem *string `json:"ConvertingReferenceDocumentItem"`

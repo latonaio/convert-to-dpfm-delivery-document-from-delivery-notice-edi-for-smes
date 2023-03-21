@@ -15,12 +15,16 @@ func OutputFormatter(
 	address := ConvertToAddress(*sdc, *psdc)
 	partner := ConvertToPartner(*sdc, *psdc)
 
-	osdc.Message = Message{
+	osdc.DataConcatenation = DataConcatenation{
 		Header:  header,
 		Item:    item,
 		Address: address,
 		Partner: partner,
 	}
+
+	osdc.ServiceLabel = "FUNCTION_DELIVERY_DOCUMENT_DATA_CONCATENATION"
+	osdc.APISchema = "DPFMDataConcatenation"
+	osdc.APIProcessingResult = getBoolPtr(true)
 
 	return nil
 }
@@ -39,15 +43,16 @@ func ConvertToHeader(
 		DeliverToParty:                dataConversionProcessingHeader.ConvertedDeliverToParty,
 		DeliverFromParty:              dataConversionProcessingHeader.ConvertedDeliverFromParty,
 		DeliverFromPlant:              dataProcessingHeader.DeliverFromPlant,
-		BillToParty:                   dataConversionProcessingHeader.ConvertedBuyer,
-		BillFromParty:                 dataConversionProcessingHeader.ConvertedSeller,
-		Payer:                         dataConversionProcessingHeader.ConvertedBuyer,
-		Payee:                         dataConversionProcessingHeader.ConvertedSeller,
+		BillToParty:                   dataConversionProcessingHeader.ConvertedBillToParty,
+		BillFromParty:                 dataConversionProcessingHeader.ConvertedBillFromParty,
+		Payer:                         dataConversionProcessingHeader.ConvertedPayer,
+		Payee:                         dataConversionProcessingHeader.ConvertedPayee,
 		ReferenceDocument:             dataConversionProcessingHeader.ConvertedReferenceDocument,
 		ReferenceDocumentItem:         dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
 		OrderID:                       dataConversionProcessingHeader.ConvertedReferenceDocument,
 		OrderItem:                     dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
 		DocumentDate:                  dataProcessingHeader.DocumentDate,
+		PlannedGoodsIssueDate:         dataProcessingHeader.PlannedGoodsIssueDate,
 		PlannedGoodsReceiptDate:       dataProcessingHeader.PlannedGoodsReceiptDate,
 		CreationDate:                  dataProcessingHeader.CreationDate,
 		CreationTime:                  dataProcessingHeader.CreationTime,
@@ -68,6 +73,7 @@ func ConvertToItem(
 	sdc dpfm_api_input_reader.SDC,
 	psdc dpfm_api_processing_formatter.ProcessingFormatterSDC,
 ) []*Item {
+	dataProcessingHeader := psdc.Header
 	dataProcessingItem := psdc.Item
 	dataConversionProcessingHeader := psdc.ConversionProcessingHeader
 	dataConversionProcessingItem := psdc.ConversionProcessingItem
@@ -75,35 +81,41 @@ func ConvertToItem(
 	items := make([]*Item, 0)
 	for i := range dataProcessingItem {
 		item := &Item{
-			DeliveryDocument:             *dataConversionProcessingHeader.ConvertedDeliveryDocument,
-			DeliveryDocumentItem:         *dataConversionProcessingItem[i].ConvertedDeliveryDocumentItem,
-			Buyer:                        dataConversionProcessingHeader.ConvertedBuyer,
-			Seller:                       dataConversionProcessingHeader.ConvertedSeller,
-			DeliverToParty:               dataConversionProcessingHeader.ConvertedDeliverToParty,
-			DeliverFromParty:             dataConversionProcessingHeader.ConvertedDeliverFromParty,
-			DeliverFromPlant:             dataProcessingItem[i].DeliverFromPlant,
-			DeliveryDocumentItemText:     dataProcessingItem[i].DeliveryDocumentItemText,
-			Product:                      dataProcessingItem[i].Product,
-			ProductStandardID:            dataProcessingItem[i].ProductStandardID,
-			DeliveryUnit:                 dataProcessingItem[i].DeliveryUnit,
-			CreationDate:                 dataProcessingItem[i].CreationDate,
-			CreationTime:                 dataProcessingItem[i].CreationTime,
-			LastChangeDate:               dataProcessingItem[i].LastChangeDate,
-			LastChangeTime:               dataProcessingItem[i].LastChangeTime,
-			NetAmount:                    dataProcessingItem[i].NetAmount,
-			GrossAmount:                  dataProcessingItem[i].GrossAmount,
-			OrderID:                      dataConversionProcessingHeader.ConvertedReferenceDocument,
-			OrderItem:                    dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
-			Project:                      dataConversionProcessingItem[i].ConvertedProject,
-			ReferenceDocument:            dataConversionProcessingHeader.ConvertedReferenceDocument,
-			ReferenceDocumentItem:        dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
-			TransactionTaxClassification: dataConversionProcessingItem[i].ConvertedTransactionTaxClassification,
-			ItemDeliveryBlockStatus:      dataProcessingItem[i].ItemDeliveryBlockStatus,
-			ItemIssuingBlockStatus:       dataProcessingItem[i].ItemIssuingBlockStatus,
-			ItemReceivingBlockStatus:     dataProcessingItem[i].ItemReceivingBlockStatus,
-			ItemBillingBlockStatus:       dataProcessingItem[i].ItemBillingBlockStatus,
-			IsCancelled:                  dataProcessingItem[i].IsCancelled,
-			IsMarkedForDeletion:          dataProcessingItem[i].IsMarkedForDeletion,
+			DeliveryDocument:                 *dataConversionProcessingHeader.ConvertedDeliveryDocument,
+			DeliveryDocumentItem:             *dataConversionProcessingItem[i].ConvertedDeliveryDocumentItem,
+			Buyer:                            dataConversionProcessingHeader.ConvertedBuyer,
+			Seller:                           dataConversionProcessingHeader.ConvertedSeller,
+			DeliverToParty:                   dataConversionProcessingHeader.ConvertedDeliverToParty,
+			DeliverFromParty:                 dataConversionProcessingHeader.ConvertedDeliverFromParty,
+			DeliverFromPlant:                 dataProcessingItem[i].DeliverFromPlant,
+			BillToParty:                      dataConversionProcessingHeader.ConvertedBillToParty,
+			BillFromParty:                    dataConversionProcessingHeader.ConvertedBillFromParty,
+			Payer:                            dataConversionProcessingHeader.ConvertedPayer,
+			Payee:                            dataConversionProcessingHeader.ConvertedPayee,
+			StockConfirmationBusinessPartner: dataConversionProcessingHeader.ConvertedDeliverFromParty,
+			StockConfirmationPlant:           dataProcessingHeader.DeliverFromPlant,
+			DeliveryDocumentItemText:         dataProcessingItem[i].DeliveryDocumentItemText,
+			Product:                          dataProcessingItem[i].Product,
+			ProductStandardID:                dataProcessingItem[i].ProductStandardID,
+			DeliveryUnit:                     dataProcessingItem[i].DeliveryUnit,
+			CreationDate:                     dataProcessingItem[i].CreationDate,
+			CreationTime:                     dataProcessingItem[i].CreationTime,
+			LastChangeDate:                   dataProcessingItem[i].LastChangeDate,
+			LastChangeTime:                   dataProcessingItem[i].LastChangeTime,
+			NetAmount:                        dataProcessingItem[i].NetAmount,
+			GrossAmount:                      dataProcessingItem[i].GrossAmount,
+			OrderID:                          dataConversionProcessingHeader.ConvertedReferenceDocument,
+			OrderItem:                        dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
+			Project:                          dataConversionProcessingItem[i].ConvertedProject,
+			ReferenceDocument:                dataConversionProcessingHeader.ConvertedReferenceDocument,
+			ReferenceDocumentItem:            dataConversionProcessingHeader.ConvertedReferenceDocumentItem,
+			TransactionTaxClassification:     dataConversionProcessingItem[i].ConvertedTransactionTaxClassification,
+			ItemDeliveryBlockStatus:          dataProcessingItem[i].ItemDeliveryBlockStatus,
+			ItemIssuingBlockStatus:           dataProcessingItem[i].ItemIssuingBlockStatus,
+			ItemReceivingBlockStatus:         dataProcessingItem[i].ItemReceivingBlockStatus,
+			ItemBillingBlockStatus:           dataProcessingItem[i].ItemBillingBlockStatus,
+			IsCancelled:                      dataProcessingItem[i].IsCancelled,
+			IsMarkedForDeletion:              dataProcessingItem[i].IsMarkedForDeletion,
 		}
 
 		items = append(items, item)
@@ -145,4 +157,8 @@ func ConvertToPartner(
 	}
 
 	return partners
+}
+
+func getBoolPtr(b bool) *bool {
+	return &b
 }

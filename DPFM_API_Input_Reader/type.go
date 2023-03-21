@@ -9,7 +9,8 @@ type SDC struct {
 	RuntimeSessionID  string   `json:"runtime_session_id"`
 	BusinessPartnerID *int     `json:"business_partner"`
 	ServiceLabel      string   `json:"service_label"`
-	Header            Header   `json:"SalesOrder"`
+	APIType           string   `json:"api_type"`
+	Header            Header   `json:"DeliveryNotice"`
 	APISchema         string   `json:"api_schema"`
 	Accepter          []string `json:"accepter"`
 	Deleted           bool     `json:"deleted"`
@@ -114,7 +115,6 @@ type Header struct {
 }
 
 type Item struct {
-	ExchangedDeliveryNoticeDocumentIdentifier                                      string   `json:"ExchangedDeliveryNoticeDocumentIdentifier"`
 	DeliveryNoticeDocumentItemlineIdentifier                                       string   `json:"DeliveryNoticeDocumentItemlineIdentifier"`
 	DeliveryNoticeDocumentItemlineStatusCode                                       *string  `json:"DeliveryNoticeDocumentItemlineStatusCode"`
 	DeliveryNoticeDocumentItemlineStatusReasonCode                                 *string  `json:"DeliveryNoticeDocumentItemlineStatusReasonCode"`
